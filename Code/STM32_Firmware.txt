@@ -1,0 +1,125 @@
+/* USER CODE BEGIN Header */
+/**
+ ******************************************************************************
+ * @file : main.c
+ * @brief : Main program body (LM35/ACS712 with Float Support)
+ ******************************************************************************
+ */
+/* USER CODE END Header */
+
+#include "main.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+/* Private variables ---------------------------------------------------------*/
+UART_HandleTypeDef huart1;
+// ADC_HandleTypeDef hadc1; // <--- Uncomment for real hardware
+char buffer[100];
+float temp_c, current;
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_USART1_UART_Init(void);
+// static void MX_ADC1_Init(void); // <--- Uncomment for real hardware
+void Error_Handler(void);
+
+int main(void)
+{
+    HAL_Init();
+    SystemClock_Config();
+
+    MX_GPIO_Init();
+    MX_USART1_UART_Init();
+    // MX_ADC1_Init(); // <--- Uncomment for real hardware
+
+    // Send startup message
+    sprintf(buffer, "\r\n=== System Started ===\r\nLM35 & ACS712 Monitor\r\n\r\n");
+    HAL_UART_Transmit(&huart1, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);
+
+    while (1)
+    {
+        // ------------------ Simulated LM35 Temperature ------------------
+        // Real hardware: HAL_ADC_Start(&hadc1);
+        //                HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+        //                uint32_t adc_value = HAL_ADC_GetValue(&hadc1);
+        //                temp_c = (adc_value * 3.3 / 4095.0) * 100.0;
+        temp_c = 25.0f + (rand() % 100) / 10.0f;  // 25°C to 35°C
+
+        // ------------------ Simulated ACS712 Current ------------------
+        // Real hardware: HAL_ADC_Start(&hadc1);
+        //                HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+        //                uint32_t adc_value2 = HAL_ADC_GetValue(&hadc1);
+        //                float voltage = adc_value2 * 3.3 / 4095.0;
+        //                current = (voltage - 2.5) / 0.185; // For ACS712-5A
+        current = 0.5f + (rand() % 50) / 100.0f;  // 0.5A to 1.0A
+
+        // ----- Print all values to Virtual Terminal -----
+        sprintf(buffer, "LM35 Temp: %.2f C | ACS712 Current: %.2f A\r\n", temp_c, current);
+        HAL_UART_Transmit(&huart1, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);
+
+        HAL_Delay(1000);
+    }
+}
+
+/* Peripheral Initialization Functions */
+static void MX_USART1_UART_Init(void)
+{
+    huart1.Instance = USART1;
+    huart1.Init.BaudRate = 9600;
+    huart1.Init.WordLength = UART_WORDLENGTH_8B;
+    huart1.Init.StopBits = UART_STOPBITS_1;
+    huart1.Init.Parity = UART_PARITY_NONE;
+    huart1.Init.Mode = UART_MODE_TX_RX;
+    huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+    if (HAL_UART_Init(&huart1) != HAL_OK)
+    {
+        Error_Handler();
+    }
+}
+
+static void MX_GPIO_Init(void)
+{
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+}
+
+/* HAL_UART_MspInit is now in stm32f1xx_hal_msp.c - removed from here */
+
+void SystemClock_Config(void)
+{
+    RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+    RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+    RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+    RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+    HAL_RCC_OscConfig(&RCC_OscInitStruct);
+
+    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
+                                | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+    RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+    RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+    RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+    HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0);
+}
+
+void Error_Handler(void)
+{
+    __disable_irq();
+    while (1) {}
+}
+
+/* Retarget printf to UART (optional, for using printf directly) */
+#ifdef __GNUC__
+int __io_putchar(int ch)
+#else
+int fputc(int ch, FILE *f)
+#endif
+{
+    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+    return ch;
+}
